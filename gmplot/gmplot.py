@@ -46,6 +46,8 @@ class GoogleMapPlotter(object):
         self.color_dict = mpl_color_map
         self.html_color_codes = html_color_codes
 
+        self.html_headers = []
+
     @classmethod
     def from_geocode(cls, location_string, zoom=13):
         lat, lng = cls.geocode(location_string)
@@ -62,12 +64,13 @@ class GoogleMapPlotter(object):
     def grid(self, slat, elat, latin, slng, elng, lngin):
         self.gridsetting = [slat, elat, latin, slng, elng, lngin]
 
-    def marker(self, lat, lng, color='#FF0000', c=None, title="no implementation", imgpath=None):
+    def marker(self, lat, lng, color='#FF0000', c=None, title="no implementation", 
+        imgpath=None, onclick=None):
         if c:
             color = c
         color = self.color_dict.get(color, color)
         color = self.html_color_codes.get(color, color)
-        self.points.append((lat, lng, color[1:], title, imgpath))
+        self.points.append((lat, lng, color[1:], title, imgpath, onclick))
 
     def scatter(self, lats, lngs, color=None, size=None, marker=True, c=None, s=None, symbol='o', **kwargs):
         color = color or c
@@ -224,6 +227,11 @@ class GoogleMapPlotter(object):
         settings = self._process_kwargs(kwargs)
         shape = zip(lats, lngs)
         self.shapes.append((shape, settings))
+        
+    def add_header(self, text):
+        """text will be inserted to the html head when the file is generated"""
+        self.html_headers.append(text)
+        print("added header")
 
     def draw(self, htmlfile):
         """Create the html file which include one google map and all points and paths. If 
@@ -237,6 +245,10 @@ class GoogleMapPlotter(object):
         f.write(
             '<meta http-equiv="content-type" content="text/html; charset=UTF-8"/>\n')
         f.write('<title>Google Maps - gmplot </title>\n')
+        
+        for head in self.html_headers:
+            f.write(head)
+
         if self.apikey:
             f.write('<script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?libraries=visualization&sensor=true_or_false&key=%s"></script>\n' % self.apikey )
         else:
@@ -296,7 +308,7 @@ class GoogleMapPlotter(object):
 
     def write_points(self, f):
         for point in self.points:
-            self.write_point(f, point[0], point[1], point[2], point[3], point[4])
+            self.write_point(f, point[0], point[1], point[2], point[3], point[4], point[5])
 
     def write_circles(self, f):
         for circle, settings in self.circles:
@@ -327,7 +339,7 @@ class GoogleMapPlotter(object):
             '\t\tvar map = new google.maps.Map(document.getElementById("map_canvas"), myOptions);\n')
         f.write('\n')
 
-    def write_point(self, f, lat, lon, color, title, imgpath=None):
+    def write_point(self, f, lat, lon, color, title, imgpath=None, onclick=None):
         imgpath = imgpath if imgpath else (self.coloricon % color)
 
         f.write('\t\tvar latlng = new google.maps.LatLng(%f, %f);\n' %
@@ -340,6 +352,11 @@ class GoogleMapPlotter(object):
         f.write('\t\tposition: latlng\n')
         f.write('\t\t});\n')
         f.write('\t\tmarker.setMap(map);\n')
+        
+        if onclick:
+            f.write('\t\tgoogle.maps.event.addDomListener(marker, "click", function() {\n')
+            f.write('\t\t\t%s\n' % onclick)
+            f.write('\t\t});\n')
         f.write('\n')
 
     def write_symbol(self, f, symbol, settings):
